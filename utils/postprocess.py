@@ -14,7 +14,51 @@ from datasets import event as evt
 A lot of these functions borrow heavily from 
 https://github.com/gautiernguyen/Automatic-detection-of-ICMEs-at-1-AU-a-deep-learning-approach
 '''
+def predict(data,model,config):
+    ## Generating the result
+    image_size = (config['data_window_len'],1,10)
+    X_test_windowed = make_views(data.X_test, win_size = config['data_window_len'], step_size = config['data_window_len'] ,writeable = False)
+    Y_test_windowed = make_views(data.Y_test, win_size = config['data_window_len'], step_size = config['data_window_len'] ,writeable = False)
 
+    for i, test in tqdm(enumerate(X_test_windowed), total=len(X_test_windowed)):
+    
+        df_mask = pds.DataFrame(Y_test_windowed[i])
+        df_mask = df_mask.set_index(df_mask[1])
+        df_mask = df_mask.iloc[: , :-1]
+        image = pds.DataFrame(test)
+        image = image.set_index(image[10])
+        image = image.iloc[: , :-1]
+        predict_mask = model.predict(np.expand_dims(np.asarray(np.expand_dims(image, axis=0)).astype('float64'),2))[0]
+        df_mask['pred'] = np.squeeze(predict_mask)
+        df_mask.columns = ['true', 'pred']
+        if i == 0:
+            result = df_mask
+        else:
+            result = pds.concat([result, df_mask], sort=True)
+
+    result = result.sort_index()
+    result['true'] = np.asarray(result['true']).astype('float64')
+    result.index = pds.to_datetime(result.index)
+    resultbin = postprocess.make_binary(result['pred'], 0.5)
+    events = postprocess.makeEventList(resultbin, 1, 10)
+    ICMEs = postprocess.removeCreepy(events, config['creepy'])
+    test_clouds = [x for x in data.evtlist if (x.begin.year in data.test)]
+    
+    logger.info('{} Score:'.format(config['spacecraft']))
+
+    TP, FN, FP, detected = postprocess.evaluate(ICMEs, test_clouds, thres=0.1)
+    logger.info('Precision is:',len(TP)/(len(TP)+len(FP)))
+    logger.info('Recall is:',len(TP)/(len(TP)+len(FN)))
+    logger.info('True Positives', len(TP))
+    logger.info('False Negatives', len(FN))
+    logger.info('False Positives', len(FP))
+    
+    result.to_csv(config['pred_dir'])
+    
+    logger.info("Predictions saved to '{}'".format(config['pred_dir']))
+    
+    return TP, FN, FP, detected, result
+    
 def generate_result(data, model,config):
     ## Generating the result
     image_size = (config['data_window_len'],1,10)

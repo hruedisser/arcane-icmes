@@ -17,7 +17,6 @@ class Event:
         self.begin = begin
         self.mobegin = mobegin
         self.end = end
-        self.proba = None
         self.duration = self.end-self.begin
         self.origin = origin
 
@@ -29,13 +28,6 @@ class Event:
 
     def __str__(self):
         return "{} ---> {}".format(self.begin, self.end)
-
-    def get_Proba(self, y):
-        '''
-        Give the mean probability of the event following the list
-        of event predicted probability y
-        '''
-        self.proba = y[self.begin:self.end].mean()
 
     def get_data(self, df):
         self.param = df
@@ -88,7 +80,7 @@ def cleardata(evtlist,data):
         
     for year in range(startyear,endyear+1):
               
-        if len([i for i in evtlist if (i.begin.year == year)]) is not 0:
+        if len([i for i in evtlist if (i.begin.year == year)]) != 0:
             eventyears.append(year)
             if i == 0:
                 cleaneddata = data[data.index.year == year]

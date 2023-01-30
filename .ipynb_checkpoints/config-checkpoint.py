@@ -15,12 +15,16 @@ def get_config(args):
     parser.add_argument('--sampling_rate', default = 1, help='Sampling rate used for data generator')
     parser.add_argument('--catalog', choices={"helcat", "allcat","nguyen"}, default="helcat", help="Which catalog to use.") 
     parser.add_argument('--shift', default=0, help="shift to use for prediction")
+    parser.add_argument('--remove_features', default=None, help="features to remove")
+    self.parser.add_argument('splitrule', default = [[2020,2021],[2017, 2018, 2019],[2007,2008,2009,2010,2011,2012,2013,2014,2015,2016]]
     
-    
-    # I/O
+    # GENERAL
     
     parser.add_argument('--data_dir', default='datasets/files/', help='Data directory')
-    parser.add_argument('--save_dir', default='saved_models', help='Saved model directory')
+    #parser.add_argument('--save_dir', default='saved_models', help='Saved model directory')
+    parser.add_argument('--output_dir', default='output', help='Output directory')
+    parser.add_argument('--GPU', default = "", help='Which GPU to use')
+    parser.add_argument('--experiment_name', default = "default", help="Name of the experiment")
     
     
     
@@ -37,7 +41,7 @@ def get_config(args):
     parser.add_argument('--lr', type=float, default=0.0001, help='learning rate to use for fixed lr')
     
     parser.add_argument('--earlystopping_patience', default=50, help='epochs to wait until training is terminated, set to None otherwise') 
-    parser.add_argument('--shuffle', default=False, help='whether to shuffle data or not') 
+    parser.add_argument('--shuffle', default=True, help='whether to shuffle data or not') 
     parser.add_argument('--loss', default='dice_loss', help= 'which loss to use')
     
     # MODEL

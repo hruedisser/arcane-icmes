@@ -62,7 +62,7 @@ class singlespacecraft(object):
         
         logger.info("Preprocessing data...")
 
-        data = preprocessdataset(config['resampling'],alldata)
+        data = preprocessdataset(config,alldata)
         
         logger.info("Deleting empty events and removing eventless data...")
         
@@ -100,7 +100,17 @@ class singlespacecraft(object):
         
         logger.info("Splitting data...")
         
-        if config['catalog'] == 'allcat':
+        if config['split'] == 'custom':
+            
+            self.test, self.val, self.train = config['splitrule'][0], config['splitrule'][1], config['splitrule'][2] 
+            logger.info('Test: ')
+            logger.info(self.test)
+            logger.info('Val: ')
+            logger.info(self.val)
+            logger.info('Train: ')
+            logger.info(self.train)
+            
+        elif config['catalog'] == 'allcat':
             self.test, self.val, self.train = pp.getautomaticsplit(config['split'], self.evtlist['chi'], self.eventyears)
         else:
             self.test, self.val, self.train = pp.getautomaticsplit(config['split'], self.evtlist, self.eventyears)
@@ -186,7 +196,7 @@ def loadalldata(spacecraft, data_dir):
 
 
 
-def preprocessdataset(resample, dataset):
+def preprocessdataset(config, dataset):
     """
     Resamples and preprocesses a dataset. Additional features are computed (Beta, Pdyn and Texrat)
     
@@ -205,16 +215,17 @@ def preprocessdataset(resample, dataset):
     data.set_index('time',  inplace=True)
     data.index.name = None
     data.index = data.index.tz_localize(None)
+    
     data.drop(['x', 'y', 'z', 'r', 'lat', 'lon'], axis = 1,  inplace=True)
-
+    
     # compute additional features
 
     features.computeBetawiki(data)
     features.computePdyn(data)
     features.computeTexrat(data)
-
+    
     # resample data
-    data = data.resample(resample).mean().dropna()
+    data = data.resample(config['resampling']).mean().dropna()
 
     return data
 
@@ -261,8 +272,56 @@ def data_factory_fun(config):
     
     return data
 
+def feature_cleaner(data,config):
+    
+    unwanted = ['x', 'y', 'z', 'r', 'lat', 'lon', 'Kp', 'AP']
+    
+    for feat in unwanted:
+        data = drop_feature(data, feat)
+        print(data)
+    if config['remove_features'] is not None:
+        for feat in config['remove_features']:
+            data = drop_feature(data, feat)
+    
+    data = check_feature(data, 'bt', 'B')
+    print(data)
+    data = check_feature(data, 'bx', 'Bx')
+    data = check_feature(data, 'by', 'By')
+    data = check_feature(data, 'bz', 'Bz')
+    
+    data = check_feature(data, 'vt', 'V')
+    data = check_feature(data, 'np', 'N')
+    
+    # compute additional features
+
+    features.computeBetawiki(data)
+    features.computePdyn(data)
+    features.computeTexrat(data)
+    print(data)
+    
+def drop_feature(data, feature):
+    
+    if feature in data:
+        data.drop([feature],axis = 1, inplace = True)
+        return data
+    else:
+        return data
+    
+def check_feature(data, feature, alt):
+    
+    if feature in data.columns:
+        return data
+    elif alt in data.columns:
+        data[feature] = data[alt]
+        return data
+    else:
+        raise KeyError('Neither {0}, nor {1} are part of the dataset!'.format(feature, alt)) 
+
 
 data_factory = {'all': multispacecraft,
                 'Wind': singlespacecraft,
                 'STEREO-A': singlespacecraft,
                 'STEREO-B': singlespacecraft}
+
+
+    

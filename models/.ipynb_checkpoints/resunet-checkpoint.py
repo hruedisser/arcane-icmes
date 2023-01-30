@@ -25,10 +25,10 @@ def stem_block(x, n_filter, strides):
     x_init = x
 
     ## Conv 1
-    x = Conv2D(n_filter, (3, 3), padding="same", strides=strides)(x)
+    x = Conv2D(n_filter, (3, 1), padding="same", strides=strides)(x)
     x = BatchNormalization()(x)
     x = Activation("relu")(x)
-    x = Conv2D(n_filter, (3, 3), padding="same")(x)
+    x = Conv2D(n_filter, (3, 1), padding="same")(x)
 
     ## Shortcut
     s  = Conv2D(n_filter, (1, 1), padding="same", strides=strides)(x_init)
@@ -46,11 +46,11 @@ def resnet_block(x, n_filter, strides=1):
     ## Conv 1
     x = BatchNormalization()(x)
     x = Activation("relu")(x)
-    x = Conv2D(n_filter, (3, 3), padding="same", strides=strides)(x)
+    x = Conv2D(n_filter, (3, 1), padding="same", strides=strides)(x)
     ## Conv 2
     x = BatchNormalization()(x)
     x = Activation("relu")(x)
-    x = Conv2D(n_filter, (3, 3), padding="same", strides=1)(x)
+    x = Conv2D(n_filter, (3, 1), padding="same", strides=1)(x)
 
     ## Shortcut
     s  = Conv2D(n_filter, (1, 1), padding="same", strides=strides)(x_init)
@@ -62,16 +62,16 @@ def resnet_block(x, n_filter, strides=1):
     return x
 
 def aspp_block(x, num_filters, rate_scale=1):
-    x1 = Conv2D(num_filters, (3, 3), dilation_rate=(6 * rate_scale, 6 * rate_scale), padding="same")(x)
+    x1 = Conv2D(num_filters, (3, 1), dilation_rate=(6 * rate_scale, 6 * rate_scale), padding="same")(x)
     x1 = BatchNormalization()(x1)
 
-    x2 = Conv2D(num_filters, (3, 3), dilation_rate=(12 * rate_scale, 12 * rate_scale), padding="same")(x)
+    x2 = Conv2D(num_filters, (3, 1), dilation_rate=(12 * rate_scale, 12 * rate_scale), padding="same")(x)
     x2 = BatchNormalization()(x2)
 
-    x3 = Conv2D(num_filters, (3, 3), dilation_rate=(18 * rate_scale, 18 * rate_scale), padding="same")(x)
+    x3 = Conv2D(num_filters, (3, 1), dilation_rate=(18 * rate_scale, 18 * rate_scale), padding="same")(x)
     x3 = BatchNormalization()(x3)
 
-    x4 = Conv2D(num_filters, (3, 3), padding="same")(x)
+    x4 = Conv2D(num_filters, (3, 1), padding="same")(x)
     x4 = BatchNormalization()(x4)
 
     y = Add()([x1, x2, x3, x4])
@@ -193,6 +193,11 @@ class ResUnetPlusPlus:
         return model
     
     def build_seq(self, n_filters_max,res_depth, reduce_factor):
+        
+        n_filters_max = int(n_filters_max)
+        res_depth = int(res_depth)
+        reduce_factor = int(reduce_factor)
+        
         
         inputs = Input((self.input_shape))
         clist = []
