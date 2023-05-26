@@ -1,0 +1,5 @@
+name: heliopred
+dependencies:
+  - python==3.9
+  - jupyterlab
+

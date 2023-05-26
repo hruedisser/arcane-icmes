@@ -2,6 +2,10 @@
 
 ARCANE ICMEs stands for the Automatic Realtime deteCtion ANd forEcast of Interplanetary Coronal Mass Ejections. The first part of this work has been published in Space Weather under [Automatic Detection of Interplanetary Coronal Mass Ejections in Solar Wind In Situ Data](https://doi.org/10.1029/2022SW003149).
 
+# Work in Progress
+
+This work is still being developed. For a complete first version, go to [IWF ICMES](https://github.com/hruedisser/IWF-ICMEs).
+
 # Credits
 
 This ML pipeline or parts thereof is open source and can be used by anyone for their research. However, this does not mean that credits shouldn't be given to the main developers.

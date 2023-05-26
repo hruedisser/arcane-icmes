@@ -88,7 +88,14 @@ class UnetGen(Sequence):
                 self.stride = config['data_window_len']
                 logger.info('No teststride given, using window length.')
                 
+        '''elif scenario == 'realtime':
+            self.data = data.X_test
+            self.targets = data.Y_test
+            logger.info('Initializing data generator for testing in realtime mode...')
+            self.stride = 1'''
+                
         self.task = config['task']
+        #self.switch = config['switch_output']
         self.shift = config['shift']
         self.length = config['data_window_len']
         self.sampling_rate = config['sampling_rate']
@@ -132,6 +139,10 @@ class UnetGen(Sequence):
             samples = np.array([self.data[row-self.length:row:self.sampling_rate]
                                 for row in rows], dtype = 'float64')
             
+            '''if self.switch == 'True':
+                targets = np.array([self.targets[row-self.length:row:self.sampling_rate].iloc[-1]
+                                for row in rows], dtype = 'float64')            
+            else:'''
             targets = np.array([self.targets[row-self.length:row:self.sampling_rate]
                                 for row in rows], dtype = 'float64')
             
@@ -152,5 +163,4 @@ class UnetGen(Sequence):
             #targets = np.squeeze(targets)
         else:
             raise NotImplementedError('Not Implemented.')
-        
         return samples, targets

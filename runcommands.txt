@@ -1,0 +1,23 @@
+ARCANE ~~~~~~~~~~ PRETRAINING
+
+conda activate heliopred
+cd arcane-icmes
+python main.py --data_window_len 2048 --experiment_name 'ARCANE' --pretrain --reduce_factor 2 --res_depth 3 --resampling '1T' --spacecraft 'Wind_Archive' --split 'custom' --train --GPU '1'
+
+
+ARCANE LOWRES:
+
+python main.py --experiment_name 'ARCANE-lowres' --pretrain True --spacecraft 'Wind_Archive' --split 'custom' --train True --GPU '1'
+
+python main.py --experiment_name 'ARCANE-lowres' --pretrain True --spacecraft 'Wind_Archive' --split 'custom' --train True --GPU '1' --stride 12 --max_lr 0.0001 --earlystopping_patience 10
+
+Finetune:
+
+arcane-icmes % python main.py --experiment_name 'ARCANE-lowres' --spacecraft DSCVR --split 'custom' --train True --finetune True --GPU '1' 
+
+python main.py --experiment_name 'ARCANE-lowres' --spacecraft DSCVR --split 'custom' --train True --finetune True --GPU '1' --stride 12 --max_lr 0.00001 --base_lr 0.000001 --earlystopping_patience 10
+
+Test:
+
+arcane-icmes % python main.py --experiment_name 'ARCANE-lowres' --spacecraft DSCVR --split 'custom' --train False --test True --finetune True --GPU '1' 
+

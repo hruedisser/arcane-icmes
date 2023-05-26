@@ -40,11 +40,15 @@ class singlespacecraft(object):
     """
     
     def __init__(self, spacecraft, config):
-              
+        
+        if (config['spacecraft'] == 'Wind_Archive') or  (config['spacecraft'] == 'DSCVR'):
+            sc = 'Wind'
+        else:
+            sc = config['spacecraft']
         if config['catalog'] == 'helcat':
             logger.info("Loading Helio4cast catalog...")
             
-            cat = evt.get_catevents(config['data_dir'] + 'HELIO4CAST_ICMECAT_v21_pandas.p',config['spacecraft'])
+            cat = evt.get_catevents(config['data_dir'] + 'HELIO4CAST_ICMECAT_v21_pandas.p',sc)
         
         elif config['catalog'] == 'nguyen':
             logger.info("Loading Nguyen catalog...")
@@ -81,6 +85,7 @@ class singlespacecraft(object):
             self.evtlist['chi'] = evt.clearempties(catdic['chi'],self.all_df)
        
         else:
+                  
             self.all_df, self.eventyears = evt.cleardata(cat, data)
         
             self.evtlist = evt.clearempties(cat,self.all_df)
@@ -99,9 +104,15 @@ class singlespacecraft(object):
         data_scaled = scaledata(self.all_df)
         
         logger.info("Splitting data...")
+        if (config['split'] == 'custom') and (config['spacecraft'] == 'Wind_Archive'):
+            logger.info("Using pretrain splitting rule...")
+            config['splitrule'] = [[2016],[2014,2015,2016],[1996,1997,1998,1999,2000,2001,2002,2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,]]
+        if (config['split'] == 'custom') and (config['spacecraft'] == 'DSCVR'):
+            logger.info("Using fine splitting rule...")
+            config['splitrule'] = [[2022,2023],[2021,2020,2019],[2016,2017,2018]]
         
         if config['split'] == 'custom':
-            
+            logger.info("Using custom...")
             self.test, self.val, self.train = config['splitrule'][0], config['splitrule'][1], config['splitrule'][2] 
             logger.info('Test: ')
             logger.info(self.test)
@@ -113,6 +124,7 @@ class singlespacecraft(object):
         elif config['catalog'] == 'allcat':
             self.test, self.val, self.train = pp.getautomaticsplit(config['split'], self.evtlist['chi'], self.eventyears)
         else:
+            logger.info("Using automatic splitting rule...")
             self.test, self.val, self.train = pp.getautomaticsplit(config['split'], self.evtlist, self.eventyears)
         
         self.X_test, self.Y_test, self.X_val, self.Y_val, self.X_train, self.Y_train = pp.getdatas(self.train,self.test,self.val,data_scaled,self.labels_df)
@@ -191,6 +203,12 @@ def loadalldata(spacecraft, data_dir):
         [alldata, dataheader] = pickle.load(open(data_dir + "stereoa_2007_2021_sceq_ndarray.p", "rb"))
     elif spacecraft == "STEREO-B":
         [alldata, attb, bheader] = pickle.load(open(data_dir + "stereob_2007_2014_sceq_ndarray.p", "rb"))
+        
+    elif spacecraft == "DSCVR":
+        alldata = pickle.load(open(data_dir + "rtsw_all.p", "rb"))
+        
+    elif spacecraft == "Wind_Archive":
+        alldata = pickle.load(open(data_dir + "wind_all.p", "rb"))
 
     return alldata
 
@@ -208,25 +226,68 @@ def preprocessdataset(config, dataset):
         data              resampled and preprocessed dataset
     """
     # pre process on the data set
-
-    data = pds.DataFrame(dataset)
-    data['time'] = matplotlib.dates.num2date(data['time'], tz=None) 
-    data['time'] = pds.to_datetime(data['time'], format="%Y/%m/%d %H:%M")
+    
+    keys = [key for key, value in config['std_features'].items()]
+    add_keys = [key for key, value in config['add_features'].items()]
+    
+    keys = keys + add_keys
+    dataset = pds.DataFrame(dataset)
+    try:
+        dataset.set_index('time',inplace=True)
+    except:
+        pass
+    data = pds.DataFrame(columns = keys)
+    
+    try:
+        data['time'] = matplotlib.dates.num2date(dataset['time'], tz=None)
+        data['time'] = pds.to_datetime(data['time'], format="%Y/%m/%d %H:%M")
+        
+    except:
+        try:
+            data['time'] = dataset['time']
+            data['time'] = pds.to_datetime(data['time'], format="%Y/%m/%d %H:%M")
+        except:
+            data['time'] = dataset.index
+            if config['spacecraft'] == 'Wind':
+                data['time'] = matplotlib.dates.num2date(data['time'] +  matplotlib.dates.date2num(np.datetime64('0000-12-31')), tz=None)      
+            data['time'] = pds.to_datetime(data['time'], format="%Y/%m/%d %H:%M")
+            
+            
+            
     data.set_index('time',  inplace=True)
     data.index.name = None
     data.index = data.index.tz_localize(None)
-    
-    data.drop(['x', 'y', 'z', 'r', 'lat', 'lon'], axis = 1,  inplace=True)
-    
+               
+    for key, values in config['std_features'].items():
+        for val in values:
+            if val in dataset.columns:
+                try:
+                    data[key] = dataset[val].values
+                except:
+                    data[key] = dataset[val]
+                
+                
     # compute additional features
 
-    features.computeBetawiki(data)
-    features.computePdyn(data)
-    features.computeTexrat(data)
+    for key, values in config['add_features'].items():
+        flag = False
+        for val in values:
+            if val in dataset.columns:
+                try:
+                    data[key] = dataset[val].values
+                except:
+                    data[key] = dataset[val]
+                flag = True
+        if flag == False:
+            if key == 'beta':
+                features.computeBetawiki(data)
+            elif key == 'pdyn':
+                features.computePdyn(data)
+            elif key == 'texrat':
+                features.computeTexrat(data)        
     
     # resample data
     data = data.resample(config['resampling']).mean().dropna()
-
     return data
 
 def scaledata(data):
@@ -264,7 +325,9 @@ def data_factory_fun(config):
     data_class = {'all': multispacecraft,
                 'Wind': singlespacecraft,
                 'STEREO-A': singlespacecraft,
-                'STEREO-B': singlespacecraft}
+                'STEREO-B': singlespacecraft,
+                'DSCVR': singlespacecraft,
+                'Wind_Archive': singlespacecraft}
     
     spacecraft = data_class[config['spacecraft']]
     
@@ -278,13 +341,11 @@ def feature_cleaner(data,config):
     
     for feat in unwanted:
         data = drop_feature(data, feat)
-        print(data)
     if config['remove_features'] is not None:
         for feat in config['remove_features']:
             data = drop_feature(data, feat)
     
     data = check_feature(data, 'bt', 'B')
-    print(data)
     data = check_feature(data, 'bx', 'Bx')
     data = check_feature(data, 'by', 'By')
     data = check_feature(data, 'bz', 'Bz')
@@ -297,7 +358,6 @@ def feature_cleaner(data,config):
     features.computeBetawiki(data)
     features.computePdyn(data)
     features.computeTexrat(data)
-    print(data)
     
 def drop_feature(data, feature):
     
@@ -321,7 +381,9 @@ def check_feature(data, feature, alt):
 data_factory = {'all': multispacecraft,
                 'Wind': singlespacecraft,
                 'STEREO-A': singlespacecraft,
-                'STEREO-B': singlespacecraft}
+                'STEREO-B': singlespacecraft,
+                'DSCVR': singlespacecraft,
+                'Wind_Archive': singlespacecraft}
 
 
     

@@ -1,14 +1,17 @@
-
+import logging
 import pandas as pds
 import numpy as np
 import datetime
 from tqdm import tqdm
 import pickle
 import matplotlib.pyplot as plt
-from sklearn.metrics import roc_curve, roc_auc_score
-from sklearn.metrics import precision_recall_curve, auc, plot_precision_recall_curve
+#from sklearn.metrics import roc_curve, roc_auc_score
+#from sklearn.metrics import precision_recall_curve, auc, plot_precision_recall_curve
 from numpy.lib.stride_tricks import as_strided
 from datasets import event as evt
+import seaborn as sns
+
+logger = logging.getLogger()
 
 '''
 A lot of these functions borrow heavily from 
@@ -39,21 +42,21 @@ def predict(data,model,config):
     result = result.sort_index()
     result['true'] = np.asarray(result['true']).astype('float64')
     result.index = pds.to_datetime(result.index)
-    resultbin = postprocess.make_binary(result['pred'], 0.5)
-    events = postprocess.makeEventList(resultbin, 1, 10)
-    ICMEs = postprocess.removeCreepy(events, config['creepy'])
+    resultbin = make_binary(result['pred'], 0.5)
+    events = makeEventList(resultbin, 1, 10)
+    ICMEs = removeCreepy(events, config['creepy'])
     test_clouds = [x for x in data.evtlist if (x.begin.year in data.test)]
     
     logger.info('{} Score:'.format(config['spacecraft']))
 
-    TP, FN, FP, detected = postprocess.evaluate(ICMEs, test_clouds, thres=0.1)
-    logger.info('Precision is:',len(TP)/(len(TP)+len(FP)))
-    logger.info('Recall is:',len(TP)/(len(TP)+len(FN)))
-    logger.info('True Positives', len(TP))
-    logger.info('False Negatives', len(FN))
-    logger.info('False Positives', len(FP))
+    TP, FN, FP, detected = evaluate(ICMEs, test_clouds, thres=0.1)
+    logger.info('Precision is %f:'%(len(TP)/(len(TP)+len(FP))))
+    logger.info('Recall is: %f'%(len(TP)/(len(TP)+len(FN))))
+    logger.info('True Positives %i' %(len(TP)))
+    logger.info('False Negatives %i' %(len(FN)))
+    logger.info('False Positives %i' %(len(FP)))
     
-    result.to_csv(config['pred_dir'])
+    result.to_csv(config['pred_dir']+'/prediction.csv')
     
     logger.info("Predictions saved to '{}'".format(config['pred_dir']))
     
@@ -245,3 +248,83 @@ def evaluate(predicted_list, test_list, thres=0.51, durationCreepies=2.5):
         predicted_list.remove(event)
 
     return TP, FN, FP, detected
+
+def plotrealtime(data, result):
+    x = 1
+
+import matplotlib.pyplot as plt
+from matplotlib import animation
+import matplotlib
+
+from matplotlib.colors import ListedColormap
+
+def predict_realtime(data,model,config):
+    ## Generating the result
+    image_size = (config['data_window_len'],1,10)
+    X_test_windowed = make_views(data.X_test, win_size = config['data_window_len'], step_size = 1000, writeable = False)
+    Y_test_windowed = make_views(data.Y_test, win_size = config['data_window_len'], step_size = 1000, writeable = False)
+    
+    #sns.set_style('darkgrid')
+    #sns.set_context('paper')
+    
+    colors = [(0, 0, 0, 0.5),(0, 1, 0, 0.5),(1, 0, 0, 0.5)]
+    cmap = ListedColormap(colors)
+        
+    fig=plt.figure(figsize=(15,6)) 
+    
+    for i, test in tqdm(enumerate(X_test_windowed), total=len(X_test_windowed)):
+    
+        df_mask = pds.DataFrame(Y_test_windowed[i])
+        df_mask = df_mask.set_index(df_mask[1])
+        df_mask = df_mask.iloc[: , :-1]
+        image = pds.DataFrame(test)
+        image = image.set_index(image[10])
+        image = image.iloc[: , :-1]
+        predict_mask = model.predict(np.expand_dims(np.asarray(np.expand_dims(image, axis=0)).astype('float64'),2))[0]
+        df_mask['pred'] = np.squeeze(predict_mask)
+        df_mask.columns = ['true', 'pred']
+        
+        df_mask.to_csv(config['pred_dir']+'/realtime_prediction'+ str(i)+'.csv')
+        
+        plt.clf()
+        
+        ax = plt.subplot(111) 
+
+        
+        ax.set_ylim(-15,15)
+        ax.tick_params(axis='x', which='major', labelsize=8, pad=10)
+        
+
+        # create background color
+        for j in range(len(image.index)-1):
+            if df_mask.loc[image.index[j], 'true'] == 1 and df_mask.loc[image.index[j], 'pred'] < .6:
+                ax.axvspan(image.index[j], image.index[j + 1], color='grey', alpha=0.2)  # transparent grey
+            elif df_mask.loc[image.index[j], 'true'] == 1 and df_mask.loc[image.index[j], 'pred'] > .6:
+                ax.axvspan(image.index[j], image.index[j + 1], color='green', alpha=0.2)  # transparent green
+            elif df_mask.loc[image.index[j], 'true'] == 0 and df_mask.loc[image.index[j], 'pred'] > .6:
+                ax.axvspan(image.index[j], image.index[j + 1], color='red', alpha=0.2)  # transparent red
+        
+        #plt.plot(x, image[start:end])
+        ax.plot_date(image.index, image[0],'-r',label='Bx',linewidth=0.5)
+        ax.plot_date(image.index, image[1],'-g',label='By',linewidth=0.5)
+        ax.plot_date(image.index, image[2],'-b',label='Bz',linewidth=0.5)
+        ax.plot_date(image.index, image[3],'-k',label='Btotal',lw=0.5)
+        plt.ylabel('B [nT]')
+        plt.legend(loc=3,ncol=4,fontsize=8)
+    
+        #fig.canvas.draw()
+        #fig.canvas.flush_events()
+        plt.tight_layout()
+        #plt.show()
+        # save plot
+        plt.savefig(config['pred_dir']+'/realtime_prediction_image'+ str(i)+'.png')
+
+    #plt.rcParams['animation.ffmpeg_path'] = r'/Users/hannahruedisser/Downloads/ffmpeg'
+    #FFwriter=animation.FFMpegWriter(fps=10, extra_args=['-vcodec', 'libx264'])
+    #ani = animation.FuncAnimation(fig, animate, frames=len(X_test_windowed), interval=100)
+    #ani.save(config['pred_dir']+'/realtime_prediction.mp4', writer=FFwriter)
+   
+    logger.info("Predictions saved to '{}'".format(config['pred_dir']))
+    
+    return 
+

@@ -33,14 +33,28 @@ def setup(args):
 #        rand_suffix = "".join(random.choices(string.ascii_letters + string.digits, k=3))
 #        output_dir += "_" + formatted_timestamp + "_" + rand_suffix
     config['output_dir'] = output_dir
-    config['save_dir'] = os.path.join(output_dir, 'checkpoints')
-    config['pred_dir'] = os.path.join(output_dir, 'predictions')
-    #config['tensorboard_dir'] = os.path.join(output_dir, 'tb_summaries')
-    utils.create_dirs([config['save_dir'], config['pred_dir']]) #, config['tensorboard_dir']
+    
+    if config['finetune'] == 'True':
+        config['save_dir'] = os.path.join(output_dir, 'checkpoints-finetuned')
+        config['model_dir_pretrained'] = os.path.join(output_dir, 'complete_saved_model')
+        config['model_dir'] = os.path.join(output_dir, 'complete_saved_model-finetuned')    
+        config['pred_dir'] = os.path.join(output_dir, 'predictions-finetuned')
+        #config['tensorboard_dir'] = os.path.join(output_dir, 'tb_summaries')
+        utils.create_dirs([config['save_dir'], config['pred_dir']]) #, config['tensorboard_dir']
 
-    # Save configuration as a (pretty) json file
-    with open(os.path.join(output_dir, 'configuration.json'), 'w') as fp:
-        json.dump(config, fp, indent=4, sort_keys=True)
+        # Save configuration as a (pretty) json file
+        with open(os.path.join(output_dir, 'configuration-finetuned.json'), 'w') as fp:
+            json.dump(config, fp, indent=4, sort_keys=True)
+    else:
+        config['save_dir'] = os.path.join(output_dir, 'checkpoints')
+        config['model_dir'] = os.path.join(output_dir, 'complete_saved_model')    
+        config['pred_dir'] = os.path.join(output_dir, 'predictions')
+        #config['tensorboard_dir'] = os.path.join(output_dir, 'tb_summaries')
+        utils.create_dirs([config['save_dir'], config['pred_dir']]) #, config['tensorboard_dir']
+
+        # Save configuration as a (pretty) json file
+        with open(os.path.join(output_dir, 'configuration.json'), 'w') as fp:
+            json.dump(config, fp, indent=4, sort_keys=True)
 
     logger.info("Stored configuration file in '{}'".format(output_dir))
 
